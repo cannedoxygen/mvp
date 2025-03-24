@@ -11,6 +11,7 @@ from app.services.simulation import SimulationService
 from app.services.gameService import GameService
 from app.services.factor_analysis import FactorAnalysisService
 from app.services.ai_analysis import AIAnalysisService
+from app.services.oddsService import OddsService  # Added import
 from app.config import settings
 
 def get_db() -> Generator:
@@ -81,3 +82,11 @@ def get_ai_analysis_service(
     Dependency for AIAnalysis service
     """
     return AIAnalysisService(openai_client=openai_client, game_service=game_service)
+
+def get_odds_service(
+    sports_data_client: SportsDataIOClient = Depends(get_sports_data_client)
+) -> OddsService:
+    """
+    Dependency for Odds service
+    """
+    return OddsService(sports_data_client=sports_data_client)

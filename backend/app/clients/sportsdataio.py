@@ -17,14 +17,11 @@ class SportsDataIOClient:
         self.base_url = "https://api.sportsdata.io/v3/mlb"
         self.timeout = 15  # seconds
     
-    async def _make_request(self, endpoint: str, params: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def _make_request(self, category: str, endpoint: str, params: Dict[str, Any] = None) -> Dict[str, Any]:
         """Make a request to the SportsDataIO API"""
-        url = f"{self.base_url}/{endpoint}"
+        url = f"{self.base_url}/{category}/json/{endpoint}"
         
-        # Ensure API key is included
-        params = params or {}
-        
-        # Add API key to headers
+        # Ensure API key is included in headers
         headers = {"Ocp-Apim-Subscription-Key": self.api_key}
         
         async with aiohttp.ClientSession() as session:
@@ -44,165 +41,200 @@ class SportsDataIOClient:
     
     async def get_teams(self) -> List[Dict[str, Any]]:
         """Get all MLB teams"""
-        endpoint = "json/teams"
-        return await self._make_request(endpoint)
+        try:
+            return await self._make_request("scores", "teams")
+        except Exception as e:
+            logger.error(f"Error fetching teams: {str(e)}")
+            return []
     
-    async def get_team(self, team_id: str) -> Dict[str, Any]:
+    async def get_team(self, team_id: str) -> Optional[Dict[str, Any]]:
         """Get team details by ID"""
-        teams = await self.get_teams()
-        for team in teams:
-            if team.get("TeamID") == team_id:
-                return team
-        return None
+        try:
+            return await self._make_request("scores", f"team/{team_id}")
+        except Exception as e:
+            logger.error(f"Error fetching team {team_id}: {str(e)}")
+            return None
     
     # === Schedule Endpoints ===
     
     async def get_games_by_date(self, game_date: date) -> List[Dict[str, Any]]:
         """Get all MLB games for a specific date"""
-        date_str = game_date.strftime("%Y-%b-%d")
-        endpoint = f"json/GamesByDate/{date_str}"
-        return await self._make_request(endpoint)
+        try:
+            date_str = game_date.strftime("%Y-%m-%d")
+            return await self._make_request("scores", f"GamesByDate/{date_str}")
+        except Exception as e:
+            logger.error(f"Error fetching games for date {game_date}: {str(e)}")
+            return []
     
     async def get_games_by_season(self, season: str = "2025") -> List[Dict[str, Any]]:
         """Get all MLB games for a specific season"""
-        endpoint = f"json/Games/{season}"
-        return await self._make_request(endpoint)
+        try:
+            return await self._make_request("scores", f"Schedule/{season}")
+        except Exception as e:
+            logger.error(f"Error fetching schedule for season {season}: {str(e)}")
+            return []
     
     # === Player Endpoints ===
     
     async def get_players(self) -> List[Dict[str, Any]]:
         """Get all MLB players"""
-        endpoint = "json/Players"
-        return await self._make_request(endpoint)
-    
-    async def get_player(self, player_id: str) -> Dict[str, Any]:
-        """Get player details by ID"""
-        players = await self.get_players()
-        for player in players:
-            if player.get("PlayerID") == player_id:
-                return player
-        return None
+        try:
+            return await self._make_request("scores", "Players")
+        except Exception as e:
+            logger.error(f"Error fetching players: {str(e)}")
+            return []
     
     async def get_team_players(self, team_id: str) -> List[Dict[str, Any]]:
         """Get all players for a specific team"""
-        players = await self.get_players()
-        team_players = [p for p in players if p.get("TeamID") == team_id]
-        return team_players
+        try:
+            return await self._make_request("scores", f"Players/{team_id}")
+        except Exception as e:
+            logger.error(f"Error fetching players for team {team_id}: {str(e)}")
+            return []
+    
+    async def get_player(self, player_id: str) -> Optional[Dict[str, Any]]:
+        """Get player details by ID"""
+        try:
+            return await self._make_request("scores", f"Player/{player_id}")
+        except Exception as e:
+            logger.error(f"Error fetching player {player_id}: {str(e)}")
+            return None
     
     # === Game Stats Endpoints ===
     
-    async def get_box_score(self, game_id: str) -> Dict[str, Any]:
+    async def get_box_score(self, game_id: str) -> Optional[Dict[str, Any]]:
         """Get detailed box score for a specific game"""
-        endpoint = f"json/BoxScore/{game_id}"
-        return await self._make_request(endpoint)
+        try:
+            return await self._make_request("stats", f"BoxScore/{game_id}")
+        except Exception as e:
+            logger.error(f"Error fetching box score for game {game_id}: {str(e)}")
+            return None
     
     async def get_box_scores_by_date(self, game_date: date) -> List[Dict[str, Any]]:
         """Get box scores for all games on a specific date"""
-        date_str = game_date.strftime("%Y-%b-%d")
-        endpoint = f"json/BoxScoresByDate/{date_str}"
-        return await self._make_request(endpoint)
+        try:
+            date_str = game_date.strftime("%Y-%m-%d")
+            return await self._make_request("stats", f"BoxScoresByDate/{date_str}")
+        except Exception as e:
+            logger.error(f"Error fetching box scores for date {game_date}: {str(e)}")
+            return []
     
-    async def get_play_by_play(self, game_id: str) -> Dict[str, Any]:
+    async def get_play_by_play(self, game_id: str) -> Optional[Dict[str, Any]]:
         """Get play by play data for a specific game"""
-        endpoint = f"json/PlayByPlay/{game_id}"
-        return await self._make_request(endpoint)
+        try:
+            return await self._make_request("stats", f"PlayByPlay/{game_id}")
+        except Exception as e:
+            logger.error(f"Error fetching play by play for game {game_id}: {str(e)}")
+            return None
     
-    # === Projections Endpoints ===
+    # === Standings Endpoints ===
     
-    async def get_projected_player_game_stats(self, game_date: date) -> List[Dict[str, Any]]:
-        """Get projected player stats for games on a specific date"""
-        date_str = game_date.strftime("%Y-%b-%d")
-        endpoint = f"json/PlayerGameProjectionStatsByDate/{date_str}"
-        return await self._make_request(endpoint)
-    
-    async def get_starting_lineups_by_date(self, game_date: date) -> List[Dict[str, Any]]:
-        """Get starting lineups for all games on a specific date"""
-        # Note: Starting lineups are included in the projected player game stats endpoint
-        projected_stats = await self.get_projected_player_game_stats(game_date)
-        
-        # Process the data to extract lineups by game
-        lineups = {}
-        for player in projected_stats:
-            game_id = player.get("GameID")
-            if not game_id:
-                continue
-                
-            team_id = player.get("TeamID")
-            batting_order = player.get("BattingOrder")
-            
-            if not batting_order or int(batting_order or 0) <= 0:
-                continue
-                
-            if game_id not in lineups:
-                lineups[game_id] = {"home": [], "away": []}
-            
-            # Determine if home or away team based on game info
-            is_home = player.get("HomeOrAway") == "HOME"
-            lineup_key = "home" if is_home else "away"
-            
-            lineups[game_id][lineup_key].append({
-                "player_id": player.get("PlayerID"),
-                "name": player.get("Name"),
-                "position": player.get("Position"),
-                "batting_order": int(batting_order),
-                "confirmed": player.get("BattingOrderConfirmed", False)
-            })
-            
-            # Sort by batting order
-            lineups[game_id][lineup_key].sort(key=lambda x: x["batting_order"])
-        
-        # Convert to list format
-        result = []
-        for game_id, lineup in lineups.items():
-            result.append({
-                "GameID": game_id,
-                "HomeLineup": lineup["home"],
-                "AwayLineup": lineup["away"],
-                "HomeLineupConfirmed": all(p.get("confirmed", False) for p in lineup["home"]),
-                "AwayLineupConfirmed": all(p.get("confirmed", False) for p in lineup["away"])
-            })
-            
-        return result
+    async def get_standings(self, season: str = "2025") -> List[Dict[str, Any]]:
+        """Get standings for a specific season"""
+        try:
+            return await self._make_request("scores", f"Standings/{season}")
+        except Exception as e:
+            logger.error(f"Error fetching standings for season {season}: {str(e)}")
+            return []
     
     # === Odds Endpoints ===
     
     async def get_game_odds_by_date(self, game_date: date) -> List[Dict[str, Any]]:
         """Get betting odds for all games on a specific date"""
-        date_str = game_date.strftime("%Y-%b-%d")
-        endpoint = f"json/GameOddsByDate/{date_str}"
-        return await self._make_request(endpoint)
+        try:
+            date_str = game_date.strftime("%Y-%m-%d")
+            return await self._make_request("odds", f"GameOddsByDate/{date_str}")
+        except Exception as e:
+            logger.error(f"Error fetching game odds for date {game_date}: {str(e)}")
+            return []
     
     async def get_player_props_by_date(self, game_date: date) -> List[Dict[str, Any]]:
         """Get player prop bets for all games on a specific date"""
-        date_str = game_date.strftime("%Y-%b-%d")
-        endpoint = f"json/PlayerPropsByDate/{date_str}"
-        return await self._make_request(endpoint)
+        try:
+            date_str = game_date.strftime("%Y-%m-%d")
+            return await self._make_request("odds", f"PlayerPropsByDate/{date_str}")
+        except Exception as e:
+            logger.error(f"Error fetching player props for date {game_date}: {str(e)}")
+            return []
     
-    # === Standings Endpoints ===
+    # === Projections Endpoints ===
     
-    async def get_standings(self, season: str = "2025") -> Dict[str, Any]:
-        """Get standings for a specific season"""
-        endpoint = f"json/Standings/{season}"
-        return await self._make_request(endpoint)
+    async def get_projected_player_game_stats(self, game_date: date) -> List[Dict[str, Any]]:
+        """Get projected player stats for games on a specific date"""
+        try:
+            date_str = game_date.strftime("%Y-%m-%d")
+            return await self._make_request("projections", f"PlayerGameProjectionStatsByDate/{date_str}")
+        except Exception as e:
+            logger.error(f"Error fetching projected player stats for date {game_date}: {str(e)}")
+            return []
     
-    # === Weather Endpoints ===
+    async def get_starting_lineups_by_date(self, game_date: date) -> List[Dict[str, Any]]:
+        """Get starting lineups for all games on a specific date"""
+        try:
+            # Note: Starting lineups are included in the projected player game stats endpoint
+            return await self.get_projected_player_game_stats(game_date)
+        except Exception as e:
+            logger.error(f"Error fetching starting lineups for date {game_date}: {str(e)}")
+            return []
+    
+    # === Injuries Endpoints ===
+    
+    async def get_injuries(self) -> List[Dict[str, Any]]:
+        """Get current MLB injuries"""
+        try:
+            return await self._make_request("scores", "Injuries")
+        except Exception as e:
+            logger.error(f"Error fetching injuries: {str(e)}")
+            return []
+    
+    # === News Endpoints ===
+    
+    async def get_news(self) -> List[Dict[str, Any]]:
+        """Get latest MLB news"""
+        try:
+            return await self._make_request("scores", "News")
+        except Exception as e:
+            logger.error(f"Error fetching news: {str(e)}")
+            return []
+    
+    async def get_player_news(self, player_id: str) -> List[Dict[str, Any]]:
+        """Get news for a specific player"""
+        try:
+            return await self._make_request("scores", f"NewsByPlayerID/{player_id}")
+        except Exception as e:
+            logger.error(f"Error fetching news for player {player_id}: {str(e)}")
+            return []
+    
+    # === Stadium/Weather Endpoints ===
+    
+    async def get_stadiums(self) -> List[Dict[str, Any]]:
+        """Get all MLB stadiums"""
+        try:
+            return await self._make_request("scores", "Stadiums")
+        except Exception as e:
+            logger.error(f"Error fetching stadiums: {str(e)}")
+            return []
     
     async def get_stadium_weather(self, game_date: date) -> List[Dict[str, Any]]:
         """Get weather forecasts for stadiums with games on a specific date"""
-        # Weather is included in the games by date endpoint
-        games = await self.get_games_by_date(game_date)
-        
-        weather_data = []
-        for game in games:
-            if "StadiumID" in game and "Weather" in game:
-                weather_data.append({
-                    "GameID": game.get("GameID"),
-                    "StadiumID": game.get("StadiumID"),
-                    "Stadium": game.get("Stadium"),
-                    "Weather": game.get("Weather"),
-                    "Temperature": game.get("Temperature"),
-                    "WindSpeed": game.get("WindSpeed"),
-                    "WindDirection": game.get("WindDirection")
-                })
-        
-        return weather_data
+        try:
+            # Weather is included in the games by date endpoint
+            games = await self.get_games_by_date(game_date)
+            
+            weather_data = []
+            for game in games:
+                if "StadiumID" in game and "Weather" in game:
+                    weather_data.append({
+                        "GameID": game.get("GameID"),
+                        "StadiumID": game.get("StadiumID"),
+                        "Stadium": game.get("Stadium"),
+                        "Weather": game.get("Weather"),
+                        "Temperature": game.get("Temperature"),
+                        "WindSpeed": game.get("WindSpeed"),
+                        "WindDirection": game.get("WindDirection")
+                    })
+            
+            return weather_data
+        except Exception as e:
+            logger.error(f"Error fetching stadium weather for date {game_date}: {str(e)}")
+            return []

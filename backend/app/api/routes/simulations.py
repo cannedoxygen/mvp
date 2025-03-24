@@ -3,17 +3,16 @@ from fastapi import APIRouter, Depends, HTTPException, Body
 from typing import Dict, Any, Optional
 from datetime import date
 
-from app.models.simulation import SimulationResult, SimulationRequest
 from app.services.simulation import SimulationService
 from app.services.factor_analysis import FactorAnalysisService
 from app.api.dependencies import get_db, get_simulation_service, get_factor_analysis_service
 
 router = APIRouter()
 
-@router.post("/baseball/{game_id}", response_model=SimulationResult)
+@router.post("/baseball/{game_id}")
 async def run_baseball_simulation(
     game_id: str,
-    request: SimulationRequest = Body(...),
+    request: Dict[str, Any] = Body(...),
     simulation_service: SimulationService = Depends(get_simulation_service),
     factor_service: FactorAnalysisService = Depends(get_factor_analysis_service)
 ):
@@ -21,13 +20,16 @@ async def run_baseball_simulation(
     Run a Monte Carlo simulation for a specific baseball game
     """
     try:
+        # Extract simulation count from request
+        count = request.get("count", 1000)
+        
         # Analyze factors that might impact the game
         factors = await factor_service.analyze_game_factors(game_id)
         
         # Run Monte Carlo simulation with the analyzed factors
         simulation_results = await simulation_service.run_baseball_simulation(
             game_id=game_id,
-            count=request.count,
+            count=count,
             factors=factors
         )
         
@@ -43,7 +45,7 @@ async def run_baseball_simulation(
             detail=f"Failed to run simulation: {str(e)}"
         )
 
-@router.get("/baseball/{game_id}/history", response_model=Dict[str, Any])
+@router.get("/baseball/{game_id}/history")
 async def get_simulation_history(
     game_id: str,
     limit: int = 5,
@@ -59,7 +61,7 @@ async def get_simulation_history(
         )
         
         return {
-            "game_id": game_id,
+            "gameId": game_id,
             "simulations": history
         }
     except Exception as e:
@@ -68,7 +70,7 @@ async def get_simulation_history(
             detail=f"Failed to retrieve simulation history: {str(e)}"
         )
 
-@router.post("/baseball/factors/{game_id}", response_model=Dict[str, Any])
+@router.post("/baseball/factors/{game_id}")
 async def analyze_game_factors(
     game_id: str,
     factor_service: FactorAnalysisService = Depends(get_factor_analysis_service)

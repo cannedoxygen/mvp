@@ -4,8 +4,6 @@ from typing import List, Dict, Any, Optional
 from datetime import date, datetime, timedelta
 
 from app.clients.sportsdataio import SportsDataIOClient
-from app.models.game import Game
-from app.schemas.game import GameDetail  # If it exists in schemas
 from app.core.cache import cache
 
 logger = logging.getLogger(__name__)
@@ -50,7 +48,7 @@ class GameService:
                     "id": game.get("GameID"),
                     "status": self._map_game_status(game.get("Status")),
                     "startTime": game.get("DateTime"),
-                    "stadium": game.get("Stadium"),
+                    "stadium": game.get("StadiumName"),
                     "homeTeam": {
                         "id": game.get("HomeTeamID"),
                         "name": game.get("HomeTeam"),
@@ -92,35 +90,35 @@ class GameService:
             # Fetch box score for the game
             box_score = await self.sports_data_client.get_box_score(game_id)
             
-            # The box score contains the core game info
-            game = box_score.get("Game", {})
-            
+            if not box_score:
+                return None
+                
             # Transform to our application model
             game_details = {
-                "id": game.get("GameID"),
-                "status": self._map_game_status(game.get("Status")),
-                "startTime": game.get("DateTime"),
-                "stadium": game.get("Stadium"),
+                "id": box_score.get("Game", {}).get("GameID"),
+                "status": self._map_game_status(box_score.get("Game", {}).get("Status")),
+                "startTime": box_score.get("Game", {}).get("DateTime"),
+                "stadium": box_score.get("Game", {}).get("StadiumName"),
                 "homeTeam": {
-                    "id": game.get("HomeTeamID"),
-                    "name": game.get("HomeTeam"),
-                    "abbreviation": game.get("HomeTeamID")
+                    "id": box_score.get("Game", {}).get("HomeTeamID"),
+                    "name": box_score.get("Game", {}).get("HomeTeam"),
+                    "abbreviation": box_score.get("Game", {}).get("HomeTeamID")
                 },
                 "awayTeam": {
-                    "id": game.get("AwayTeamID"),
-                    "name": game.get("AwayTeam"),
-                    "abbreviation": game.get("AwayTeamID")
+                    "id": box_score.get("Game", {}).get("AwayTeamID"),
+                    "name": box_score.get("Game", {}).get("AwayTeam"),
+                    "abbreviation": box_score.get("Game", {}).get("AwayTeamID")
                 },
-                "homeScore": game.get("HomeTeamRuns"),
-                "awayScore": game.get("AwayTeamRuns"),
-                "inning": game.get("Inning"),
-                "isTopInning": game.get("InningHalf") == "T",
+                "homeScore": box_score.get("Game", {}).get("HomeTeamRuns"),
+                "awayScore": box_score.get("Game", {}).get("AwayTeamRuns"),
+                "inning": box_score.get("Game", {}).get("Inning"),
+                "isTopInning": box_score.get("Game", {}).get("InningHalf") == "T",
                 "weather": {
-                    "temperature": game.get("Temperature"),
-                    "condition": game.get("Weather"),
-                    "windSpeed": game.get("WindSpeed"),
-                    "windDirection": game.get("WindDirection")
-                } if game.get("Weather") else None,
+                    "temperature": box_score.get("Game", {}).get("Temperature"),
+                    "condition": box_score.get("Game", {}).get("Weather"),
+                    "windSpeed": box_score.get("Game", {}).get("WindSpeed"),
+                    "windDirection": box_score.get("Game", {}).get("WindDirection")
+                } if box_score.get("Game", {}).get("Weather") else None,
                 "homeStats": box_score.get("HomeTeamStats"),
                 "awayStats": box_score.get("AwayTeamStats"),
                 "inningScores": box_score.get("Innings", [])
@@ -147,6 +145,9 @@ class GameService:
             # Fetch team details
             team = await self.sports_data_client.get_team(team_id)
             
+            if not team:
+                return None
+                
             # Fetch team players
             players = await self.sports_data_client.get_team_players(team_id)
             
@@ -159,6 +160,24 @@ class GameService:
                 "league": team.get("League"),
                 "division": team.get("Division"),
                 "stadium": team.get("StadiumName"),
+                "record": f"{team.get('Wins', 0)}-{team.get('Losses', 0)}",
+                "homeRecord": f"{team.get('HomeWins', 0)}-{team.get('HomeLosses', 0)}",
+                "awayRecord": f"{team.get('AwayWins', 0)}-{team.get('AwayLosses', 0)}",
+                "last10": self._calculate_last10(team),
+                "batting": {
+                    "average": team.get("BattingAvg"),
+                    "obp": team.get("OnBasePercentage"),
+                    "slugging": team.get("SluggingPercentage"),
+                    "ops": team.get("OnBasePlusSlugging"),
+                    "homeRuns": team.get("HomeRuns"),
+                    "runsPerGame": team.get("RunsPerGame")
+                },
+                "pitching": {
+                    "era": team.get("ERA"),
+                    "whip": team.get("WHIP"),
+                    "strikeoutsPerNine": team.get("StrikeoutsPerNineInnings"),
+                    "walksPerNine": team.get("WalksPerNineInnings")
+                },
                 "players": [
                     {
                         "id": p.get("PlayerID"),
@@ -185,6 +204,36 @@ class GameService:
         except Exception as e:
             logger.error(f"Error fetching team stats: {str(e)}")
             return None
+    
+    @cache(ttl=900)  # Cache for 15 minutes
+    async def get_all_teams(self) -> List[Dict[str, Any]]:
+        """
+        Get all MLB teams
+        
+        Returns:
+            List of teams with basic information
+        """
+        try:
+            teams_data = await self.sports_data_client.get_teams()
+            
+            transformed_teams = []
+            for team in teams_data:
+                transformed_team = {
+                    "id": team.get("TeamID"),
+                    "name": team.get("Name"),
+                    "city": team.get("City"),
+                    "abbreviation": team.get("Key"),
+                    "league": team.get("League"),
+                    "division": team.get("Division"),
+                    "stadium": team.get("StadiumName"),
+                    "logo": team.get("WikipediaLogoUrl")
+                }
+                transformed_teams.append(transformed_team)
+                
+            return transformed_teams
+        except Exception as e:
+            logger.error(f"Error fetching all teams: {str(e)}")
+            return []
     
     @cache(ttl=600)  # Cache for 10 minutes
     async def get_projected_player_stats(self, date_obj: date) -> List[Dict[str, Any]]:
@@ -292,13 +341,13 @@ class GameService:
                 "awayTeam": game_details.get("awayTeam", {}).get("name"),
                 "homeMoneyline": game_odds.get("HomeMoneyLine"),
                 "awayMoneyline": game_odds.get("AwayMoneyLine"),
+                "totalRuns": game_odds.get("OverUnder"),
+                "overOdds": game_odds.get("OverPayout"),
+                "underOdds": game_odds.get("UnderPayout"),
                 "homeRunLine": game_odds.get("HomePointSpread"),
                 "awayRunLine": game_odds.get("AwayPointSpread"),
                 "homeRunLineOdds": game_odds.get("HomePointSpreadPayout"),
                 "awayRunLineOdds": game_odds.get("AwayPointSpreadPayout"),
-                "overUnder": game_odds.get("OverUnder"),
-                "overOdds": game_odds.get("OverPayout"),
-                "underOdds": game_odds.get("UnderPayout"),
                 "lastUpdated": game_odds.get("LastUpdated")
             }
             
@@ -351,7 +400,7 @@ class GameService:
                     "position": prop.get("Position"),
                     "betType": prop.get("BetType"),
                     "betDescription": prop.get("Description"),
-                    "overUnder": prop.get("OverUnder"),
+                    "line": prop.get("OverUnder"),
                     "overOdds": prop.get("OverPayout"),
                     "underOdds": prop.get("UnderPayout")
                 }
@@ -363,6 +412,79 @@ class GameService:
         except Exception as e:
             logger.error(f"Error fetching player props: {str(e)}")
             return []
+    
+    async def get_injuries(self) -> List[Dict[str, Any]]:
+        """
+        Get current MLB injuries
+        
+        Returns:
+            List of player injuries
+        """
+        try:
+            injuries_data = await self.sports_data_client.get_injuries()
+            
+            transformed_injuries = []
+            for injury in injuries_data:
+                transformed_injury = {
+                    "playerId": injury.get("PlayerID"),
+                    "playerName": injury.get("Name"),
+                    "team": injury.get("Team"),
+                    "position": injury.get("Position"),
+                    "status": injury.get("Status"),
+                    "injuryType": injury.get("InjuryType"),
+                    "injuryNotes": injury.get("InjuryNotes"),
+                    "expectedReturn": injury.get("ExpectedReturn")
+                }
+                transformed_injuries.append(transformed_injury)
+                
+            return transformed_injuries
+        except Exception as e:
+            logger.error(f"Error fetching injuries: {str(e)}")
+            return []
+    
+    async def get_standings(self) -> Dict[str, Any]:
+        """
+        Get current MLB standings
+        
+        Returns:
+            Dictionary containing standings by league and division
+        """
+        try:
+            standings_data = await self.sports_data_client.get_standings()
+            
+            # Organize standings by league and division
+            leagues = {}
+            
+            for team in standings_data:
+                league = team.get("League")
+                division = team.get("Division")
+                
+                if league not in leagues:
+                    leagues[league] = {}
+                    
+                if division not in leagues[league]:
+                    leagues[league][division] = []
+                    
+                team_standing = {
+                    "id": team.get("TeamID"),
+                    "name": team.get("Name"),
+                    "abbreviation": team.get("Key"),
+                    "wins": team.get("Wins"),
+                    "losses": team.get("Losses"),
+                    "winPercentage": team.get("Percentage"),
+                    "gamesBehind": team.get("GamesBehind"),
+                    "homeRecord": f"{team.get('HomeWins')}-{team.get('HomeLosses')}",
+                    "awayRecord": f"{team.get('AwayWins')}-{team.get('AwayLosses')}",
+                    "lastTen": self._format_last_ten(team),
+                    "streak": self._format_streak(team)
+                }
+                
+                leagues[league][division].append(team_standing)
+                
+            return leagues
+        except Exception as e:
+            logger.error(f"Error fetching standings: {str(e)}")
+            return {}
     
     def _map_game_status(self, status_code: str) -> str:
         """Map SportsDataIO status codes to our application status"""
@@ -379,3 +501,37 @@ class GameService:
         }
         
         return status_map.get(status_code, "unknown")
+    
+    def _calculate_last10(self, team: Dict[str, Any]) -> str:
+        """Calculate team's last 10 games record"""
+        # This would typically come from the API, but we'll calculate a placeholder
+        # based on overall record if not available
+        if "Last10Wins" in team and "Last10Losses" in team:
+            return f"{team.get('Last10Wins')}-{team.get('Last10Losses')}"
+        
+        wins = team.get("Wins", 0)
+        losses = team.get("Losses", 0)
+        
+        # Estimate based on win percentage
+        total = wins + losses
+        if total == 0:
+            return "0-0"
+            
+        win_pct = wins / total
+        last10_wins = min(round(win_pct * 10), 10)
+        last10_losses = 10 - last10_wins
+        
+        return f"{last10_wins}-{last10_losses}"
+    
+    def _format_last_ten(self, team: Dict[str, Any]) -> str:
+        """Format team's last 10 games record"""
+        if "Last10Wins" in team and "Last10Losses" in team:
+            return f"{team.get('Last10Wins')}-{team.get('Last10Losses')}"
+        return "0-0"
+    
+    def _format_streak(self, team: Dict[str, Any]) -> str:
+        """Format team's winning/losing streak"""
+        if "StreakType" in team and "StreakCount" in team:
+            streak_type = "W" if team.get("StreakType") == "Win" else "L"
+            return f"{streak_type}{team.get('StreakCount')}"
+        return "N/A"

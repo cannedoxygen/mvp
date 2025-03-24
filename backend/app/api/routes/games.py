@@ -4,13 +4,11 @@ from typing import List, Dict, Any
 from datetime import date, datetime
 
 from app.services.gameService import GameService
-from app.core.database import get_db
 from app.api.dependencies import get_game_service
-from sqlalchemy.orm import Session
 
 router = APIRouter()
 
-@router.get("/baseball/date/{game_date}", response_model=List[Dict[str, Any]])
+@router.get("/baseball/date/{game_date}")
 async def get_baseball_games_by_date(
     game_date: date,
     game_service: GameService = Depends(get_game_service)
@@ -27,7 +25,7 @@ async def get_baseball_games_by_date(
         
     return games
 
-@router.get("/baseball/{game_id}", response_model=Dict[str, Any])
+@router.get("/baseball/{game_id}")
 async def get_baseball_game_details(
     game_id: str,
     game_service: GameService = Depends(get_game_service)
@@ -44,7 +42,7 @@ async def get_baseball_game_details(
     
     return game
 
-@router.get("/baseball/today", response_model=List[Dict[str, Any]])
+@router.get("/baseball/today")
 async def get_todays_baseball_games(
     game_service: GameService = Depends(get_game_service)
 ):
@@ -56,7 +54,7 @@ async def get_todays_baseball_games(
     
     return games
 
-@router.get("/baseball/teams", response_model=List[Dict[str, Any]])
+@router.get("/baseball/teams")
 async def get_baseball_teams(
     game_service: GameService = Depends(get_game_service)
 ):
@@ -66,7 +64,7 @@ async def get_baseball_teams(
     teams = await game_service.get_all_teams()
     return teams
 
-@router.get("/baseball/teams/{team_id}", response_model=Dict[str, Any])
+@router.get("/baseball/teams/{team_id}")
 async def get_baseball_team(
     team_id: str,
     game_service: GameService = Depends(get_game_service)
@@ -81,7 +79,7 @@ async def get_baseball_team(
         
     return team
 
-@router.get("/baseball/odds/{game_id}", response_model=Dict[str, Any])
+@router.get("/baseball/odds/{game_id}")
 async def get_game_odds(
     game_id: str,
     game_service: GameService = Depends(get_game_service)
@@ -96,7 +94,7 @@ async def get_game_odds(
         
     return odds
 
-@router.get("/baseball/props/{game_id}", response_model=List[Dict[str, Any]])
+@router.get("/baseball/props/{game_id}")
 async def get_player_props(
     game_id: str,
     game_service: GameService = Depends(get_game_service)
@@ -108,7 +106,7 @@ async def get_player_props(
     
     return props
 
-@router.get("/baseball/projections/date/{game_date}", response_model=List[Dict[str, Any]])
+@router.get("/baseball/projections/date/{game_date}")
 async def get_player_projections_by_date(
     game_date: date,
     game_service: GameService = Depends(get_game_service)
@@ -120,7 +118,7 @@ async def get_player_projections_by_date(
     
     return projections
 
-@router.get("/baseball/weather/{game_id}", response_model=Dict[str, Any])
+@router.get("/baseball/weather/{game_id}")
 async def get_game_weather(
     game_id: str,
     game_service: GameService = Depends(get_game_service)
