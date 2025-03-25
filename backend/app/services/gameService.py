@@ -69,10 +69,17 @@ class GameService:
                 
                 transformed_games.append(transformed_game)
             
+            # If no games found and using real API, provide mock data for development
+            if not transformed_games and not self.sports_data_client.api_key:
+                logger.info("No real games data available, using mock data")
+                # Return some mock games for development
+                return self._get_mock_games(game_date)
+            
             return transformed_games
             
         except Exception as e:
             logger.error(f"Error fetching games by date: {str(e)}")
+            # Return empty list on error
             return []
     
     @cache(ttl=1800)  # Cache for 30 minutes
@@ -87,10 +94,16 @@ class GameService:
             Game details including play-by-play, box score, etc.
         """
         try:
+            # Special handling for invalid game IDs
+            if not game_id or game_id == "today":
+                logger.warning(f"Invalid game ID: {game_id}")
+                return None
+                
             # Fetch box score for the game
             box_score = await self.sports_data_client.get_box_score(game_id)
             
             if not box_score:
+                logger.warning(f"No box score found for game: {game_id}")
                 return None
                 
             # Transform to our application model
@@ -369,6 +382,11 @@ class GameService:
             List of player props for the game
         """
         try:
+            # Special handling for invalid game IDs
+            if not game_id or game_id == "today":
+                logger.warning(f"Invalid game ID for player props: {game_id}")
+                return []
+                
             # Similar to odds, we need to filter from all props on a date
             game_details = await self.get_game_details(game_id)
             if not game_details:
@@ -535,3 +553,78 @@ class GameService:
             streak_type = "W" if team.get("StreakType") == "Win" else "L"
             return f"{streak_type}{team.get('StreakCount')}"
         return "N/A"
+        
+    def _get_mock_games(self, game_date: date) -> List[Dict[str, Any]]:
+        """Generate mock games data for development purposes"""
+        today = date.today()
+        date_str = game_date.strftime("%Y-%m-%d")
+        
+        # Generate some sample games based on the date
+        return [
+            {
+                "id": f"mlb-{date_str}-lad-sf",
+                "status": "scheduled",
+                "startTime": datetime.combine(game_date, datetime.strptime("19:05", "%H:%M").time()).isoformat(),
+                "stadium": "Oracle Park",
+                "homeTeam": {
+                    "id": "sf",
+                    "name": "San Francisco Giants",
+                    "abbreviation": "SF",
+                },
+                "awayTeam": {
+                    "id": "lad",
+                    "name": "Los Angeles Dodgers",
+                    "abbreviation": "LAD",
+                },
+                "weather": {
+                    "temperature": 68,
+                    "condition": "Clear",
+                    "windSpeed": 12,
+                    "windDirection": "Out to center"
+                }
+            },
+            {
+                "id": f"mlb-{date_str}-nyy-bos",
+                "status": "scheduled",
+                "startTime": datetime.combine(game_date, datetime.strptime("17:10", "%H:%M").time()).isoformat(),
+                "stadium": "Fenway Park",
+                "homeTeam": {
+                    "id": "bos",
+                    "name": "Boston Red Sox",
+                    "abbreviation": "BOS",
+                },
+                "awayTeam": {
+                    "id": "nyy",
+                    "name": "New York Yankees",
+                    "abbreviation": "NYY",
+                },
+                "weather": {
+                    "temperature": 54,
+                    "condition": "Partly Cloudy",
+                    "windSpeed": 8,
+                    "windDirection": "In from right"
+                }
+            },
+            {
+                "id": f"mlb-{date_str}-hou-tex",
+                "status": "scheduled",
+                "startTime": datetime.combine(game_date, datetime.strptime("20:05", "%H:%M").time()).isoformat(),
+                "stadium": "Globe Life Field",
+                "homeTeam": {
+                    "id": "tex",
+                    "name": "Texas Rangers",
+                    "abbreviation": "TEX",
+                },
+                "awayTeam": {
+                    "id": "hou",
+                    "name": "Houston Astros",
+                    "abbreviation": "HOU",
+                },
+                "weather": {
+                    "temperature": 72,
+                    "condition": "Clear",
+                    "windSpeed": 0,
+                    "windDirection": "None"
+                }
+            }
+        ]

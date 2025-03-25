@@ -1,6 +1,7 @@
 # backend/app/main.py
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 import logging
 
 from app.api.routes import games, odds, simulations
@@ -31,6 +32,15 @@ def create_application() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    
+    # Global exception handler
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception):
+        logger.error(f"Unhandled exception: {exc}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "An unexpected error occurred"}
+        )
     
     # Include routers
     app.include_router(

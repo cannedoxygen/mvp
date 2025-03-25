@@ -24,6 +24,10 @@ class SportsDataIOClient:
         # Ensure API key is included in headers
         headers = {"Ocp-Apim-Subscription-Key": self.api_key}
         
+        # Filter out None values from params to prevent serialization issues
+        if params:
+            params = {k: v for k, v in params.items() if v is not None}
+        
         async with aiohttp.ClientSession() as session:
             try:
                 async with session.get(url, params=params, headers=headers, timeout=self.timeout) as response:
@@ -105,6 +109,11 @@ class SportsDataIOClient:
     async def get_box_score(self, game_id: str) -> Optional[Dict[str, Any]]:
         """Get detailed box score for a specific game"""
         try:
+            # Check if game_id is valid before making request
+            if not game_id or game_id == "today":
+                logger.warning(f"Invalid game ID for box score: {game_id}")
+                return None
+                
             return await self._make_request("stats", f"BoxScore/{game_id}")
         except Exception as e:
             logger.error(f"Error fetching box score for game {game_id}: {str(e)}")

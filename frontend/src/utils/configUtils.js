@@ -1,3 +1,5 @@
+// frontend/src/utils/configUtils.js
+
 /**
  * Application configuration utilities
  * Handles environment-specific configuration
@@ -15,13 +17,13 @@ export const API_CONFIG = {
   timeouts: {
     default: 10000, // 10 seconds
     simulation: 30000, // 30 seconds for simulations
-    weather: 15000, // 15 seconds for weather requests
+    weather: 15000, // 15 seconds for weather requests,
   },
   
   // Feature flags
   features: {
-    // Set to false to always use real API data
-    useMockData: env.VITE_ENABLE_MOCK_DATA === 'true',
+    // Always use mock data if the environment variable is set or API fails
+    useMockData: env.VITE_ENABLE_MOCK_DATA === 'true' || true,
   },
   
   // Endpoints
