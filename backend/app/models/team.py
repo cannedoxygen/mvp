@@ -42,10 +42,8 @@ class Team(Base):
     # Timestamps
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    # Relationships
-    home_games = relationship("Game", foreign_keys="Game.home_team_id", back_populates="home_team")
-    away_games = relationship("Game", foreign_keys="Game.away_team_id", back_populates="away_team")
-    players = relationship("Player", back_populates="team")
+    # Do not include relationship definitions here to avoid circular imports
+    # They will be defined in relationships.py
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert model to dictionary"""

@@ -50,13 +50,8 @@ class Game(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    # Relationships
-    home_team = relationship("Team", foreign_keys=[home_team_id], back_populates="home_games")
-    away_team = relationship("Team", foreign_keys=[away_team_id], back_populates="away_games")
-    odds = relationship("GameOdds", back_populates="game", uselist=False)
-    
-    # We'll add the simulations relationship later to avoid circular imports
-    # simulations = relationship("Simulation", back_populates="game")
+    # Do not include relationship definitions here to avoid circular imports
+    # They will be defined in relationships.py
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert model to dictionary"""

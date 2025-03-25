@@ -10,6 +10,25 @@ from app.api.dependencies import get_game_service
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+# Important: Specific routes must come BEFORE parameterized routes
+# to avoid conflicts where FastAPI interprets "today" as a {game_id}
+
+@router.get("/baseball/today")
+async def get_todays_baseball_games(
+    game_service: GameService = Depends(get_game_service)
+):
+    """
+    Get all MLB games scheduled for today
+    """
+    logger.info("API endpoint: Getting today's games")
+    
+    # Force refresh to bypass cache
+    games = await game_service.get_todays_games(force_refresh=True)
+    
+    logger.info(f"Found {len(games)} games for today")
+    
+    return games
+
 @router.get("/baseball/date/{game_date}")
 async def get_baseball_games_by_date(
     game_date: date,
@@ -26,51 +45,6 @@ async def get_baseball_games_by_date(
         return games or []
     except Exception as e:
         logger.error(f"Error fetching games by date: {str(e)}")
-        return []
-
-@router.get("/baseball/{game_id}")
-async def get_baseball_game_details(
-    game_id: str,
-    game_service: GameService = Depends(get_game_service)
-):
-    """
-    Get detailed information for a specific MLB game
-    """
-    try:
-        # Validate game_id
-        if not game_id or game_id == "today":
-            raise HTTPException(status_code=400, detail="Invalid game ID")
-            
-        # Find the game by ID
-        game = await game_service.get_game_details(game_id)
-        
-        # Raise 404 if game not found
-        if not game:
-            raise HTTPException(status_code=404, detail="Game not found")
-        
-        return game
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error fetching game details: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error fetching game details: {str(e)}")
-
-@router.get("/baseball/today")
-async def get_todays_baseball_games(
-    game_service: GameService = Depends(get_game_service)
-):
-    """
-    Get all MLB games scheduled for today
-    """
-    try:
-        # Get today's games
-        games = await game_service.get_todays_games()
-        
-        # Return games or empty list if none
-        return games or []
-    except Exception as e:
-        logger.error(f"Error fetching today's games: {str(e)}")
-        # Return empty list instead of error for better frontend experience
         return []
 
 @router.get("/baseball/teams")
@@ -110,54 +84,6 @@ async def get_baseball_team(
     except Exception as e:
         logger.error(f"Error fetching team stats: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error fetching team stats: {str(e)}")
-
-@router.get("/baseball/odds/{game_id}")
-async def get_game_odds(
-    game_id: str,
-    game_service: GameService = Depends(get_game_service)
-):
-    """
-    Get betting odds for a specific MLB game
-    """
-    try:
-        # Validate game_id
-        if not game_id or game_id == "today":
-            raise HTTPException(status_code=400, detail="Invalid game ID")
-            
-        odds = await game_service.get_game_odds(game_id)
-        
-        if not odds:
-            raise HTTPException(status_code=404, detail="Odds not found for this game")
-            
-        return odds
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error fetching game odds: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error fetching game odds: {str(e)}")
-
-@router.get("/baseball/props/{game_id}")
-async def get_player_props(
-    game_id: str,
-    game_service: GameService = Depends(get_game_service)
-):
-    """
-    Get player prop bets for a specific MLB game
-    """
-    try:
-        # Validate game_id
-        if not game_id or game_id == "today":
-            raise HTTPException(status_code=400, detail="Invalid game ID")
-            
-        props = await game_service.get_player_props(game_id)
-        
-        # Return empty list if no props found (instead of 404)
-        return props or []
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error fetching player props: {str(e)}")
-        return []
 
 @router.get("/baseball/projections/date/{game_date}")
 async def get_player_projections_by_date(
@@ -203,3 +129,79 @@ async def get_game_weather(
     except Exception as e:
         logger.error(f"Error fetching game weather: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error fetching game weather: {str(e)}")
+
+@router.get("/baseball/props/{game_id}")
+async def get_player_props(
+    game_id: str,
+    game_service: GameService = Depends(get_game_service)
+):
+    """
+    Get player prop bets for a specific MLB game
+    """
+    try:
+        # Validate game_id
+        if not game_id or game_id == "today":
+            raise HTTPException(status_code=400, detail="Invalid game ID")
+            
+        props = await game_service.get_player_props(game_id)
+        
+        # Return empty list if no props found (instead of 404)
+        return props or []
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching player props: {str(e)}")
+        return []
+
+@router.get("/baseball/odds/{game_id}")
+async def get_game_odds(
+    game_id: str,
+    game_service: GameService = Depends(get_game_service)
+):
+    """
+    Get betting odds for a specific MLB game
+    """
+    try:
+        # Validate game_id
+        if not game_id or game_id == "today":
+            raise HTTPException(status_code=400, detail="Invalid game ID")
+            
+        odds = await game_service.get_game_odds(game_id)
+        
+        if not odds:
+            raise HTTPException(status_code=404, detail="Odds not found for this game")
+            
+        return odds
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching game odds: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching game odds: {str(e)}")
+
+# This catch-all route must come AFTER all other specific routes
+@router.get("/baseball/{game_id}")
+async def get_baseball_game_details(
+    game_id: str,
+    game_service: GameService = Depends(get_game_service)
+):
+    """
+    Get detailed information for a specific MLB game
+    """
+    try:
+        # Validate game_id
+        if not game_id or game_id == "today":
+            raise HTTPException(status_code=400, detail="Invalid game ID")
+            
+        # Find the game by ID
+        game = await game_service.get_game_details(game_id)
+        
+        # Raise 404 if game not found
+        if not game:
+            raise HTTPException(status_code=404, detail="Game not found")
+        
+        return game
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching game details: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching game details: {str(e)}")

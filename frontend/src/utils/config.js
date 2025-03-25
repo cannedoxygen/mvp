@@ -21,7 +21,7 @@ export const API_CONFIG = {
   // Feature flags
   features: {
     // Set to false to always use real API data
-    useMockData: env.VITE_ENABLE_MOCK_DATA === 'true',
+    useMockData: env.VITE_ENABLE_MOCK_DATA === 'false',
   },
   
   // Endpoints
